@@ -1,5 +1,5 @@
 {
-    "name": "hotel_service",
+    "name": "house_service",
     "version": "1.0.0",
     "description": "Microservicio de hotel para Saga",
     "main": "app.js",
