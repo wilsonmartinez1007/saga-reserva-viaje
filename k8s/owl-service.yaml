@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: owl-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owl-service
+  template:
+    metadata:
+      labels:
+        app: owl-service
+    spec:
+      containers: 
+      - name: owl-service
+        image: owl-service:latest
+        ports:
+        - containerPort: 5003
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: owl-service
+spec:
+  selector:
+    app: owl-service
+  ports:
+    - protocol: TCP
+      port: 5003
+      targetPort: 5003
+  type: ClusterIP
