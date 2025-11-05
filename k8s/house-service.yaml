@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: house-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: house-service
+  template:
+    metadata: 
+      labels:
+        app: house-service
+    spec:
+      containers:
+      - name: house-service
+        image: house-service:latest
+        ports:
+        - containerPort: 5002
+        imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: house-service
+spec:
+  selector:
+    app: house-service
+  ports:
+    - protocol: TCP
+      port: 5002
+      targetPort: 5002
+  type: ClusterIP
