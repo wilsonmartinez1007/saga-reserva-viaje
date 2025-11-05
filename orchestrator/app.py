@@ -1,48 +1,61 @@
 from flask import Flask, request, jsonify
-import requests
+import requests 
+import os 
 
 app = Flask(__name__)
 
-FLIGHT_URL = "http://flight_service:5001"
-HOTEL_URL = "http://hotel_service:5002"
-CAR_URL = "http://car_service:5003"
+# Leer URLs de los servicios desde variables de entorno
+WAND_URL = os.getenv("WAND_URL", "http://wand-service:5001")
+HOUSE_URL = os.getenv("HOUSE_URL", "http://house-service:5002")
+OWL_URL = os.getenv("OWL_URL", "http://owl-service:5003")
 
-@app.route('/book-trip', methods=['POST'])
-def book_trip():
-    user = request.json.get('user')
+@app.route('/enroll', methods=['POST'])
+def enroll_student():
+    student_data = request.get_json()
+    if not student_data or 'student' not in student_data:
+        return jsonify({"error": "Se requiere el campo 'student'"}), 400
+    
+    student = student_data['student']
     successful_steps = []
 
     try:
-        # Reservar vuelo
-        res = requests.post(f"{FLIGHT_URL}/reserve", json={"user": user})
-        if res.status_code != 200:
-            raise Exception("Error en vuelo")
-        successful_steps.append("flight")
+        # Paso 1: Validar Varita
+        print(f"Iniciando Matrícula para {student}")
+        res = requests.post(f"{WAND_URL}/validate", json={"student": student})
+        res.raise_for_status() # Lanza una excepción si el status no es 2xx
+        successful_steps.append("wand")
+        print(f"✅ Varita validada para {student}")
 
-        # Reservar hotel
-        res = requests.post(f"{HOTEL_URL}/reserve", json={"user": user})
-        if res.status_code != 200:
-            raise Exception("Error en hotel")
-        successful_steps.append("hotel")
+        # Paso 2: Asignar Casa (puede fallar)
+        res = requests.post(f"{HOUSE_URL}/assign", json={"student": student})
+        res.raise_for_status()
+        successful_steps.append("house")
+        print(f"✅ Casa asignada para {student}")
 
-        # Reservar carro
-        res = requests.post(f"{CAR_URL}/reserve", json={"user": user})
-        if res.status_code != 200:
-            raise Exception("Error en carro")
-        successful_steps.append("car")
+        # Paso 3: Enviar Lechuza
+        res = requests.post(f"{OWL_URL}/deliver", json={"student": student})
+        res.raise_for_status()
+        successful_steps.append("owl")
+        print(f"✅ Lechuza enviada a {student}")
 
-        return jsonify({"message": f"Reserva completada para {user}"}), 200
+        print(f"🎉 Matrícula completada exitosamente para {student}")
+        return jsonify({"status": "success", "student": student}), 200
 
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        # Compensar pasos exitosos
-        if "car" in successful_steps:
-            requests.post(f"{CAR_URL}/cancel", json={"user": user})
-        if "hotel" in successful_steps:
-            requests.post(f"{HOTEL_URL}/cancel", json={"user": user})
-        if "flight" in successful_steps:
-            requests.post(f"{FLIGHT_URL}/cancel", json={"user": user})
-        return jsonify({"message": f"Error en la reserva para {user}. Se ejecutaron compensaciones."}), 500
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Fallo en la matrícula para {student}. Error: {e.response.text if e.response else str(e)}")
+        # Iniciar compensación en orden inverso
+        print("--- Iniciando compensación ---")
+        if "owl" in successful_steps:
+            requests.post(f"{OWL_URL}/revoke", json={"student": student})
+            print(f"↪️ Lechuza revocada para {student}")
+        if "house" in successful_steps:
+            requests.post(f"{HOUSE_URL}/undo", json={"student": student})
+            print(f"↪️ Asignación de casa deshecha para {student}")
+        if "wand" in successful_steps:
+            requests.post(f"{WAND_URL}/revoke", json={"student": student})
+            print(f"↪️ Validación de varita revocada para {student}")
+        
+        return jsonify({"status": "failed", "student": student, "error": "Saga fallida, compensación ejecutada"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
